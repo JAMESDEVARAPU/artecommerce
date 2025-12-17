@@ -61,6 +61,7 @@ export interface IStorage {
   getClass(id: string): Promise<ArtClass | undefined>;
   createClass(artClass: InsertArtClass): Promise<ArtClass>;
   updateClass(id: string, artClass: Partial<InsertArtClass>): Promise<ArtClass | undefined>;
+  deleteClass(id: string): Promise<void>;
 
   // Class Registrations
   getClassRegistrations(classId?: string): Promise<ClassRegistration[]>;
@@ -71,6 +72,7 @@ export interface IStorage {
   getWorkshop(id: string): Promise<Workshop | undefined>;
   createWorkshop(workshop: InsertWorkshop): Promise<Workshop>;
   updateWorkshop(id: string, workshop: Partial<InsertWorkshop>): Promise<Workshop | undefined>;
+  deleteWorkshop(id: string): Promise<void>;
 
   // Workshop Bookings
   getWorkshopBookings(workshopId?: string): Promise<WorkshopBooking[]>;
@@ -180,6 +182,10 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async deleteClass(id: string): Promise<void> {
+    await db.delete(artClasses).where(eq(artClasses.id, id));
+  }
+
   // Class Registrations
   async getClassRegistrations(classId?: string): Promise<ClassRegistration[]> {
     if (classId) {
@@ -218,6 +224,10 @@ export class DatabaseStorage implements IStorage {
   async updateWorkshop(id: string, workshop: Partial<InsertWorkshop>): Promise<Workshop | undefined> {
     const [updated] = await db.update(workshops).set(workshop).where(eq(workshops.id, id)).returning();
     return updated || undefined;
+  }
+
+  async deleteWorkshop(id: string): Promise<void> {
+    await db.delete(workshops).where(eq(workshops.id, id));
   }
 
   // Workshop Bookings

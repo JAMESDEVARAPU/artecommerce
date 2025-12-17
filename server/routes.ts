@@ -1,6 +1,7 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import bcrypt from "bcrypt";
 import {
   insertProductSchema,
   insertOrderSchema,
@@ -13,10 +14,76 @@ import {
   insertWorkshopSchema,
 } from "@shared/schema";
 
+declare module "express-session" {
+  interface SessionData {
+    userId?: string;
+    isAdmin?: boolean;
+  }
+}
+
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId || !req.session.isAdmin) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Auth Routes
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const isValid = await bcrypt.compare(password, user.password);
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      req.session.userId = user.id;
+      req.session.isAdmin = user.isAdmin || false;
+
+      res.json({ 
+        id: user.id, 
+        username: user.username, 
+        isAdmin: user.isAdmin 
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.clearCookie("connect.sid");
+      res.json({ success: true });
+    });
+  });
+
+  app.get("/api/auth/me", (req, res) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    res.json({ 
+      userId: req.session.userId, 
+      isAdmin: req.session.isAdmin 
+    });
+  });
+
   // Products
   app.get("/api/products", async (req, res) => {
     try {
@@ -163,6 +230,27 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/classes/:id", async (req, res) => {
+    try {
+      const artClass = await storage.updateClass(req.params.id, req.body);
+      if (!artClass) {
+        return res.status(404).json({ error: "Class not found" });
+      }
+      res.json(artClass);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update class" });
+    }
+  });
+
+  app.delete("/api/classes/:id", async (req, res) => {
+    try {
+      await storage.deleteClass(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete class" });
+    }
+  });
+
   // Class Registrations
   app.get("/api/class-registrations", async (req, res) => {
     try {
@@ -214,6 +302,27 @@ export async function registerRoutes(
       res.status(201).json(workshop);
     } catch (error) {
       res.status(400).json({ error: "Invalid workshop data" });
+    }
+  });
+
+  app.patch("/api/workshops/:id", async (req, res) => {
+    try {
+      const workshop = await storage.updateWorkshop(req.params.id, req.body);
+      if (!workshop) {
+        return res.status(404).json({ error: "Workshop not found" });
+      }
+      res.json(workshop);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update workshop" });
+    }
+  });
+
+  app.delete("/api/workshops/:id", async (req, res) => {
+    try {
+      await storage.deleteWorkshop(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete workshop" });
     }
   });
 

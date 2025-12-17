@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Package,
@@ -12,7 +13,9 @@ import {
   Check,
   X,
   Eye,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +42,9 @@ const productSchema = z.object({
   price: z.string().min(1, "Price is required"),
   category: z.string().min(1, "Category is required"),
   imageUrl: z.string().optional(),
-  inStock: z.boolean().default(true),
+  stockQuantity: z.number().min(0).default(0),
+  stockStatus: z.string().default("available"),
+  isEnabled: z.boolean().default(true),
   isCustomizable: z.boolean().default(false),
   featured: z.boolean().default(false),
 });
@@ -128,7 +133,9 @@ function ProductsTab() {
       price: "",
       category: "decor",
       imageUrl: "",
-      inStock: true,
+      stockQuantity: 0,
+      stockStatus: "available",
+      isEnabled: true,
       isCustomizable: false,
       featured: false,
     },
@@ -194,9 +201,12 @@ function ProductsTab() {
                 <TableCell className="capitalize">{product.category}</TableCell>
                 <TableCell>${parseFloat(product.price).toFixed(2)}</TableCell>
                 <TableCell>
-                  <Badge variant={product.inStock ? "default" : "secondary"}>
-                    {product.inStock ? "In Stock" : "Out of Stock"}
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant={product.stockStatus === 'available' ? "default" : product.stockStatus === 'limited' ? "destructive" : "secondary"}>
+                      {product.stockStatus === 'available' ? "Available" : product.stockStatus === 'limited' ? "Limited" : "Out of Stock"}
+                    </Badge>
+                    {!product.isEnabled && <Badge variant="outline">Disabled</Badge>}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Button
@@ -311,20 +321,65 @@ function ProductsTab() {
                 )}
               />
 
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="stockQuantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stock Quantity</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          min="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          data-testid="input-stock-quantity" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="stockStatus"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stock Status</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-stock-status">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="available">Available</SelectItem>
+                          <SelectItem value="limited">Limited Stock</SelectItem>
+                          <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <div className="flex flex-wrap gap-4">
                 <FormField
                   control={form.control}
-                  name="inStock"
+                  name="isEnabled"
                   render={({ field }) => (
                     <FormItem className="flex items-center gap-2">
                       <FormControl>
                         <Checkbox
                           checked={field.value}
                           onCheckedChange={field.onChange}
-                          data-testid="checkbox-in-stock"
+                          data-testid="checkbox-enabled"
                         />
                       </FormControl>
-                      <FormLabel className="!mt-0">In Stock</FormLabel>
+                      <FormLabel className="!mt-0">Enabled</FormLabel>
                     </FormItem>
                   )}
                 />
@@ -398,11 +453,11 @@ function OrdersTab() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending":
+      case "new":
         return "secondary";
-      case "confirmed":
+      case "in_progress":
         return "default";
-      case "shipped":
+      case "completed":
         return "default";
       case "delivered":
         return "default";
@@ -451,8 +506,8 @@ function OrdersTab() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={getStatusColor(order.status || "pending")}>
-                    {order.status}
+                  <Badge variant={getStatusColor(order.status || "new")}>
+                    {order.status === 'new' ? 'New' : order.status === 'in_progress' ? 'In Progress' : order.status === 'completed' ? 'Completed' : order.status === 'delivered' ? 'Delivered' : order.status === 'cancelled' ? 'Cancelled' : order.status}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -460,7 +515,7 @@ function OrdersTab() {
                 </TableCell>
                 <TableCell>
                   <Select
-                    value={order.status || "pending"}
+                    value={order.status || "new"}
                     onValueChange={(value) =>
                       updateMutation.mutate({ id: order.id, status: value })
                     }
@@ -469,9 +524,9 @@ function OrdersTab() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="shipped">Shipped</SelectItem>
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
                       <SelectItem value="delivered">Delivered</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
@@ -679,13 +734,43 @@ function MessagesTab() {
 }
 
 export default function Admin() {
+  const { user, isLoading, logout } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && (!user || !user.isAdmin)) {
+      setLocation("/login");
+    }
+  }, [isLoading, user, setLocation]);
+
+  if (isLoading) {
+    return (
+      <main className="pt-24 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Skeleton className="h-8 w-48 mx-auto mb-4" />
+          <Skeleton className="h-4 w-32 mx-auto" />
+        </div>
+      </main>
+    );
+  }
+
+  if (!user || !user.isAdmin) {
+    return null;
+  }
+
   return (
     <main className="pt-24" data-testid="page-admin">
       <section className="py-8 md:py-12">
         <div className="max-w-7xl mx-auto px-6">
-          <h1 className="font-display text-3xl md:text-4xl font-normal mb-8">
-            Admin Dashboard
-          </h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="font-display text-3xl md:text-4xl font-normal">
+              Admin Dashboard
+            </h1>
+            <Button variant="outline" onClick={() => logout().then(() => setLocation("/"))} data-testid="button-logout">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
 
           <StatsCards />
 

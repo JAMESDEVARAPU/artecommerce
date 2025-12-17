@@ -24,7 +24,9 @@ export const products = pgTable("products", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   category: text("category").notNull(), // 'decor', 'gifts', 'paintings', 'crafts'
   imageUrl: text("image_url"),
-  inStock: boolean("in_stock").default(true),
+  stockQuantity: integer("stock_quantity").default(0),
+  stockStatus: text("stock_status").default("available"), // 'available', 'out_of_stock', 'limited'
+  isEnabled: boolean("is_enabled").default(true),
   isCustomizable: boolean("is_customizable").default(false),
   featured: boolean("featured").default(false),
 });
@@ -40,10 +42,12 @@ export const orders = pgTable("orders", {
   customerEmail: text("customer_email").notNull(),
   customerPhone: text("customer_phone"),
   shippingAddress: text("shipping_address").notNull(),
-  status: text("status").default("pending"), // 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'
+  status: text("status").default("new"), // 'new', 'in_progress', 'completed', 'delivered', 'cancelled'
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   isCustomOrder: boolean("is_custom_order").default(false),
   customOrderDetails: text("custom_order_details"),
+  paymentStatus: text("payment_status").default("pending"), // 'pending', 'paid', 'failed', 'refunded'
+  paymentIntentId: text("payment_intent_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -207,6 +211,13 @@ export const galleryItems = pgTable("gallery_items", {
 export const insertGalleryItemSchema = createInsertSchema(galleryItems).omit({ id: true });
 export type InsertGalleryItem = z.infer<typeof insertGalleryItemSchema>;
 export type GalleryItem = typeof galleryItems.$inferSelect;
+
+// Sessions table for authentication
+export const sessions = pgTable("sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire").notNull(),
+});
 
 // Cart item type (for frontend state, not persisted)
 export type CartItem = {

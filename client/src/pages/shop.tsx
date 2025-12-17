@@ -83,10 +83,15 @@ function ProductCard({ product }: { product: Product }) {
               Customizable
             </Badge>
           )}
-          {!product.inStock && (
+          {product.stockStatus === 'out_of_stock' && (
             <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
               <Badge variant="secondary">Out of Stock</Badge>
             </div>
+          )}
+          {product.stockStatus === 'limited' && (
+            <Badge className="absolute top-3 right-3" variant="destructive">
+              Limited Stock
+            </Badge>
           )}
         </div>
         <CardContent className="p-4">
@@ -156,12 +161,12 @@ function ProductCard({ product }: { product: Product }) {
               <Button
                 className="w-full"
                 size="lg"
-                disabled={!product.inStock}
+                disabled={product.stockStatus === 'out_of_stock' || !product.isEnabled}
                 onClick={handleAddToCart}
                 data-testid="button-add-to-cart"
               >
                 <ShoppingBag className="mr-2 h-5 w-5" />
-                {product.inStock ? "Add to Cart" : "Out of Stock"}
+                {product.stockStatus === 'out_of_stock' ? "Out of Stock" : !product.isEnabled ? "Unavailable" : "Add to Cart"}
               </Button>
             </div>
           </div>
