@@ -1,0 +1,135 @@
+Build a clean, elegant, and visually rich website for an Art Educator and Handmade Art Business.
+
+Business Overview
+
+The owner is an art educator who creates handmade arts, home décor items, customized gifts, and also conducts art classes and workshops (online and offline).
+
+The website must showcase artwork, sell products, manage orders, and allow students to register for classes and workshops.
+
+Website Goals
+
+Showcase handmade art, décor, and gift items professionally
+
+Accept and manage product orders (ready-made + custom orders)
+
+Promote and manage art classes and workshops
+
+Build trust and credibility as an art educator
+
+Required Pages & Features
+
+1. Home Page
+
+Elegant hero section with tagline and call-to-action buttons
+
+Sections for:
+
+Handmade Art & Décor
+
+Art Classes
+
+Workshops
+
+Testimonials section
+
+Gallery preview
+
+Call-to-action: “Shop Now”, “Join a Class”
+
+2. About Page
+
+Artist/educator story
+
+Teaching philosophy
+
+Experience and achievements
+
+Professional yet warm tone
+
+3. Gallery / Portfolio
+
+Categories: Handmade Décor, Gifts, Paintings, Crafts
+
+High-quality image grid
+
+Short descriptions for each artwork
+
+4. Shop / Orders Page
+
+Product listings with images, price, description
+
+Ready-made products (Add to Cart)
+
+Custom order request form
+
+Order summary and confirmation
+
+5. Art Classes Page
+
+Class types (Kids, Adults, Beginners, Advanced)
+
+Online and Offline options
+
+Schedule, duration, fees
+
+Registration form with payment option
+
+6. Workshops Page
+
+Upcoming workshops with date, time, venue
+
+Seat availability
+
+Registration + payment
+
+Past workshop gallery
+
+7. Contact Page
+
+Contact form
+
+WhatsApp button
+
+Email and social media links
+
+Location (if offline classes exist)
+
+Functional Requirements
+
+Payment gateway support (UPI, cards)
+
+Admin panel to manage:
+
+Products
+
+Orders
+
+Class registrations
+
+Workshop registrations
+
+Mobile-responsive design
+
+SEO-friendly structure
+
+Design Style
+
+Artistic, minimal, and elegant
+
+Soft colors (pastel / earthy tones)
+
+Focus on visuals and whitespace
+
+Suitable for an art and craft brand
+
+Target Audience
+
+Art lovers
+
+Parents looking for kids’ art classes
+
+Hobby learners
+
+People looking for unique handmade gifts
+
+Deliver a complete website structure, layout, and content suggestions optimized for a small creative business.
