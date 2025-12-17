@@ -106,7 +106,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/products", async (req, res) => {
+  app.post("/api/products", requireAdmin, async (req, res) => {
     try {
       const parsed = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(parsed);
@@ -116,7 +116,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/products/:id", async (req, res) => {
+  app.patch("/api/products/:id", requireAdmin, async (req, res) => {
     try {
       const product = await storage.updateProduct(req.params.id, req.body);
       if (!product) {
@@ -128,7 +128,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/products/:id", async (req, res) => {
+  app.delete("/api/products/:id", requireAdmin, async (req, res) => {
     try {
       await storage.deleteProduct(req.params.id);
       res.status(204).send();
@@ -138,7 +138,7 @@ export async function registerRoutes(
   });
 
   // Orders
-  app.get("/api/orders", async (req, res) => {
+  app.get("/api/orders", requireAdmin, async (req, res) => {
     try {
       const orders = await storage.getOrders();
       res.json(orders);
@@ -186,7 +186,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/orders/:id", async (req, res) => {
+  app.patch("/api/orders/:id", requireAdmin, async (req, res) => {
     try {
       const order = await storage.updateOrder(req.params.id, req.body);
       if (!order) {
@@ -220,7 +220,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/classes", async (req, res) => {
+  app.post("/api/classes", requireAdmin, async (req, res) => {
     try {
       const parsed = insertArtClassSchema.parse(req.body);
       const artClass = await storage.createClass(parsed);
@@ -230,7 +230,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/classes/:id", async (req, res) => {
+  app.patch("/api/classes/:id", requireAdmin, async (req, res) => {
     try {
       const artClass = await storage.updateClass(req.params.id, req.body);
       if (!artClass) {
@@ -242,7 +242,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/classes/:id", async (req, res) => {
+  app.delete("/api/classes/:id", requireAdmin, async (req, res) => {
     try {
       await storage.deleteClass(req.params.id);
       res.status(204).send();
@@ -252,7 +252,7 @@ export async function registerRoutes(
   });
 
   // Class Registrations
-  app.get("/api/class-registrations", async (req, res) => {
+  app.get("/api/class-registrations", requireAdmin, async (req, res) => {
     try {
       const classId = req.query.classId as string | undefined;
       const registrations = await storage.getClassRegistrations(classId);
@@ -295,7 +295,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/workshops", async (req, res) => {
+  app.post("/api/workshops", requireAdmin, async (req, res) => {
     try {
       const parsed = insertWorkshopSchema.parse(req.body);
       const workshop = await storage.createWorkshop(parsed);
@@ -305,7 +305,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/workshops/:id", async (req, res) => {
+  app.patch("/api/workshops/:id", requireAdmin, async (req, res) => {
     try {
       const workshop = await storage.updateWorkshop(req.params.id, req.body);
       if (!workshop) {
@@ -317,7 +317,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/workshops/:id", async (req, res) => {
+  app.delete("/api/workshops/:id", requireAdmin, async (req, res) => {
     try {
       await storage.deleteWorkshop(req.params.id);
       res.status(204).send();
@@ -327,7 +327,7 @@ export async function registerRoutes(
   });
 
   // Workshop Bookings
-  app.get("/api/workshop-bookings", async (req, res) => {
+  app.get("/api/workshop-bookings", requireAdmin, async (req, res) => {
     try {
       const workshopId = req.query.workshopId as string | undefined;
       const bookings = await storage.getWorkshopBookings(workshopId);
@@ -369,7 +369,7 @@ export async function registerRoutes(
   });
 
   // Contacts
-  app.get("/api/contacts", async (req, res) => {
+  app.get("/api/contacts", requireAdmin, async (req, res) => {
     try {
       const contacts = await storage.getContacts();
       res.json(contacts);
@@ -389,7 +389,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/contacts/:id", async (req, res) => {
+  app.patch("/api/contacts/:id", requireAdmin, async (req, res) => {
     try {
       const contact = await storage.updateContact(req.params.id, req.body);
       if (!contact) {
@@ -411,7 +411,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/gallery", async (req, res) => {
+  app.post("/api/gallery", requireAdmin, async (req, res) => {
     try {
       const parsed = insertGalleryItemSchema.parse(req.body);
       const item = await storage.createGalleryItem(parsed);

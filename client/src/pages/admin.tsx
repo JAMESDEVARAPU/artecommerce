@@ -550,10 +550,203 @@ function ClassRegistrationsTab() {
   const { data: classes, isLoading: classesLoading } = useQuery<ArtClass[]>({
     queryKey: ["/api/classes"],
   });
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<ArtClass | null>(null);
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    schedule: "",
+    price: "",
+    maxStudents: "10",
+    level: "beginner",
+    isActive: true,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      await apiRequest("POST", "/api/classes", {
+        ...data,
+        price: data.price,
+        maxStudents: parseInt(data.maxStudents),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/classes"] });
+      toast({ title: "Class created successfully" });
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Failed to create class", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      await apiRequest("PUT", `/api/classes/${id}`, {
+        ...data,
+        price: data.price,
+        maxStudents: parseInt(data.maxStudents),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/classes"] });
+      toast({ title: "Class updated successfully" });
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Failed to update class", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/classes/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/classes"] });
+      toast({ title: "Class deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete class", variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      description: "",
+      schedule: "",
+      price: "",
+      maxStudents: "10",
+      level: "beginner",
+      isActive: true,
+    });
+    setEditingClass(null);
+    setIsDialogOpen(false);
+  };
+
+  const openEditDialog = (cls: ArtClass) => {
+    setEditingClass(cls);
+    setFormData({
+      title: cls.title,
+      description: cls.description || "",
+      schedule: cls.schedule,
+      price: cls.price,
+      maxStudents: String(cls.maxStudents || 10),
+      level: cls.level || "beginner",
+      isActive: cls.isActive ?? true,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingClass) {
+      updateMutation.mutate({ id: editingClass.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
 
   return (
     <div>
-      <h3 className="font-display text-lg mb-4">Class Registrations</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-display text-lg">Classes</h3>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} data-testid="button-add-class">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Class
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingClass ? "Edit Class" : "Add New Class"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="class-title">Title</Label>
+                <Input
+                  id="class-title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="class-description">Description</Label>
+                <Textarea
+                  id="class-description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="class-schedule">Schedule</Label>
+                <Input
+                  id="class-schedule"
+                  value={formData.schedule}
+                  onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                  placeholder="e.g., Tuesdays 6-8 PM"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="class-price">Price</Label>
+                  <Input
+                    id="class-price"
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="class-max">Max Students</Label>
+                  <Input
+                    id="class-max"
+                    type="number"
+                    value={formData.maxStudents}
+                    onChange={(e) => setFormData({ ...formData, maxStudents: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="class-level">Level</Label>
+                <Select value={formData.level} onValueChange={(v) => setFormData({ ...formData, level: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="beginner">Beginner</SelectItem>
+                    <SelectItem value="intermediate">Intermediate</SelectItem>
+                    <SelectItem value="advanced">Advanced</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="class-active"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                />
+                <Label htmlFor="class-active">Active</Label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                  {editingClass ? "Update" : "Create"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {classesLoading ? (
         <div className="space-y-2">
@@ -567,15 +760,23 @@ function ClassRegistrationsTab() {
             <TableRow>
               <TableHead>Class</TableHead>
               <TableHead>Schedule</TableHead>
+              <TableHead>Price</TableHead>
               <TableHead>Enrolled</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {classes.map((cls) => (
               <TableRow key={cls.id} data-testid={`row-class-${cls.id}`}>
-                <TableCell className="font-medium">{cls.title}</TableCell>
+                <TableCell>
+                  <div>
+                    <p className="font-medium">{cls.title}</p>
+                    <p className="text-sm text-muted-foreground capitalize">{cls.level}</p>
+                  </div>
+                </TableCell>
                 <TableCell>{cls.schedule}</TableCell>
+                <TableCell>${parseFloat(cls.price).toFixed(2)}</TableCell>
                 <TableCell>
                   {cls.enrolledCount || 0} / {cls.maxStudents || 10}
                 </TableCell>
@@ -583,6 +784,16 @@ function ClassRegistrationsTab() {
                   <Badge variant={cls.isActive ? "default" : "secondary"}>
                     {cls.isActive ? "Active" : "Inactive"}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(cls)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(cls.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -602,10 +813,215 @@ function WorkshopBookingsTab() {
   const { data: workshops, isLoading } = useQuery<Workshop[]>({
     queryKey: ["/api/workshops"],
   });
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    date: "",
+    time: "",
+    duration: "",
+    price: "",
+    maxSeats: "12",
+    materialsIncluded: true,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      await apiRequest("POST", "/api/workshops", {
+        ...data,
+        price: data.price,
+        maxSeats: parseInt(data.maxSeats),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workshops"] });
+      toast({ title: "Workshop created successfully" });
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Failed to create workshop", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      await apiRequest("PUT", `/api/workshops/${id}`, {
+        ...data,
+        price: data.price,
+        maxSeats: parseInt(data.maxSeats),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workshops"] });
+      toast({ title: "Workshop updated successfully" });
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Failed to update workshop", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/workshops/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workshops"] });
+      toast({ title: "Workshop deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete workshop", variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      description: "",
+      date: "",
+      time: "",
+      duration: "",
+      price: "",
+      maxSeats: "12",
+      materialsIncluded: true,
+    });
+    setEditingWorkshop(null);
+    setIsDialogOpen(false);
+  };
+
+  const openEditDialog = (workshop: Workshop) => {
+    setEditingWorkshop(workshop);
+    setFormData({
+      title: workshop.title,
+      description: workshop.description || "",
+      date: workshop.date,
+      time: workshop.time || "",
+      duration: workshop.duration || "",
+      price: workshop.price,
+      maxSeats: String(workshop.maxSeats),
+      materialsIncluded: workshop.materialsIncluded ?? true,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingWorkshop) {
+      updateMutation.mutate({ id: editingWorkshop.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
 
   return (
     <div>
-      <h3 className="font-display text-lg mb-4">Workshop Bookings</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-display text-lg">Workshops</h3>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} data-testid="button-add-workshop">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Workshop
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingWorkshop ? "Edit Workshop" : "Add New Workshop"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="workshop-title">Title</Label>
+                <Input
+                  id="workshop-title"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="workshop-description">Description</Label>
+                <Textarea
+                  id="workshop-description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="workshop-date">Date</Label>
+                  <Input
+                    id="workshop-date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="workshop-time">Time</Label>
+                  <Input
+                    id="workshop-time"
+                    type="time"
+                    value={formData.time}
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="workshop-duration">Duration</Label>
+                  <Input
+                    id="workshop-duration"
+                    value={formData.duration}
+                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                    placeholder="e.g., 3 hours"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="workshop-max">Max Seats</Label>
+                  <Input
+                    id="workshop-max"
+                    type="number"
+                    value={formData.maxSeats}
+                    onChange={(e) => setFormData({ ...formData, maxSeats: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="workshop-price">Price</Label>
+                <Input
+                  id="workshop-price"
+                  type="number"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="workshop-materials"
+                  checked={formData.materialsIncluded}
+                  onChange={(e) => setFormData({ ...formData, materialsIncluded: e.target.checked })}
+                />
+                <Label htmlFor="workshop-materials">Materials Included</Label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                  {editingWorkshop ? "Update" : "Create"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -618,18 +1034,29 @@ function WorkshopBookingsTab() {
           <TableHeader>
             <TableRow>
               <TableHead>Workshop</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead>Date & Time</TableHead>
+              <TableHead>Price</TableHead>
               <TableHead>Booked</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {workshops.map((workshop) => (
               <TableRow key={workshop.id} data-testid={`row-workshop-${workshop.id}`}>
-                <TableCell className="font-medium">{workshop.title}</TableCell>
                 <TableCell>
-                  {format(new Date(workshop.date), "MMM d, yyyy")}
+                  <div>
+                    <p className="font-medium">{workshop.title}</p>
+                    <p className="text-sm text-muted-foreground">{workshop.duration}</p>
+                  </div>
                 </TableCell>
+                <TableCell>
+                  <div>
+                    <p>{format(new Date(workshop.date), "MMM d, yyyy")}</p>
+                    <p className="text-sm text-muted-foreground">{workshop.time}</p>
+                  </div>
+                </TableCell>
+                <TableCell>${parseFloat(workshop.price).toFixed(2)}</TableCell>
                 <TableCell>
                   {workshop.bookedSeats || 0} / {workshop.maxSeats}
                 </TableCell>
@@ -637,6 +1064,16 @@ function WorkshopBookingsTab() {
                   <Badge variant={workshop.isPast ? "secondary" : "default"}>
                     {workshop.isPast ? "Completed" : "Upcoming"}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(workshop)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(workshop.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
