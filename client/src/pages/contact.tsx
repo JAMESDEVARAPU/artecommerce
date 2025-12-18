@@ -80,54 +80,27 @@ export default function Contact() {
             <div className="lg:col-span-2 space-y-6">
               <Card className="p-6">
                 <CardContent className="p-0 space-y-6">
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Mail className="h-5 w-5 text-primary" />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-5 w-5 text-primary" />
                     <div>
-                      <h4 className="font-medium mb-1">Email</h4>
-                      <p className="text-muted-foreground text-sm">
-                        hello@artistrystudio.com
-                      </p>
+                      <p className="font-medium">Email</p>
+                      <p className="text-muted-foreground">devarapujames@gmail.com</p>
                     </div>
                   </div>
 
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Phone className="h-5 w-5 text-primary" />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <Phone className="h-5 w-5 text-primary" />
                     <div>
-                      <h4 className="font-medium mb-1">Phone</h4>
-                      <p className="text-muted-foreground text-sm">
-                        +1 (555) 123-4567
-                      </p>
+                      <p className="font-medium">Phone</p>
+                      <p className="text-muted-foreground">+91 9959421890</p>
                     </div>
                   </div>
 
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <MapPin className="h-5 w-5 text-primary" />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-5 w-5 text-primary" />
                     <div>
-                      <h4 className="font-medium mb-1">Studio Location</h4>
-                      <p className="text-muted-foreground text-sm">
-                        123 Creative Lane<br />
-                        Art District, CA 90210
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Clock className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium mb-1">Studio Hours</h4>
-                      <p className="text-muted-foreground text-sm">
-                        Mon - Fri: 10am - 6pm<br />
-                        Sat: 10am - 4pm<br />
-                        Sun: Closed
-                      </p>
+                      <p className="font-medium">Location</p>
+                      <p className="text-muted-foreground">Gachibowli, Hyderabad</p>
                     </div>
                   </div>
                 </CardContent>
@@ -144,7 +117,7 @@ export default function Contact() {
                       asChild
                     >
                       <a
-                        href="https://wa.me/15551234567"
+                        href="https://wa.me/919959421890"
                         target="_blank"
                         rel="noopener noreferrer"
                         data-testid="link-whatsapp"
@@ -157,7 +130,7 @@ export default function Contact() {
                   <div className="flex gap-2 mt-2">
                     <Button variant="ghost" size="icon" asChild>
                       <a
-                        href="https://instagram.com"
+                        href="https://www.instagram.com/aspirants_art/?igsh=bG12N3Z0OWhsNG11#"
                         target="_blank"
                         rel="noopener noreferrer"
                         data-testid="link-contact-instagram"

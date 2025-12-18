@@ -10,6 +10,7 @@ import {
   testimonials,
   contacts,
   galleryItems,
+  productLikes,
   type User,
   type InsertUser,
   type Product,
@@ -31,9 +32,11 @@ import {
   type Contact,
   type InsertGalleryItem,
   type GalleryItem,
-} from "@shared/schema";
+  type ProductLike,
+  type InsertProductLike,
+} from "@shared/schema-sqlite";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -90,6 +93,13 @@ export interface IStorage {
   // Gallery
   getGalleryItems(): Promise<GalleryItem[]>;
   createGalleryItem(item: InsertGalleryItem): Promise<GalleryItem>;
+  deleteGalleryItem(id: string): Promise<void>;
+
+  // Product Likes
+  likeProduct(productId: string, userId: string): Promise<ProductLike>;
+  unlikeProduct(productId: string, userId: string): Promise<void>;
+  isProductLiked(productId: string, userId: string): Promise<boolean>;
+  getProductLikesCount(productId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -111,22 +121,50 @@ export class DatabaseStorage implements IStorage {
 
   // Products
   async getProducts(): Promise<Product[]> {
-    return await db.select().from(products);
+    const rawProducts = await db.select().from(products);
+    return rawProducts.map(product => ({
+      ...product,
+      additionalImages: product.additionalImages ? 
+        (typeof product.additionalImages === 'string' ? JSON.parse(product.additionalImages) : product.additionalImages) 
+        : []
+    }));
   }
 
   async getProduct(id: string): Promise<Product | undefined> {
     const [product] = await db.select().from(products).where(eq(products.id, id));
-    return product || undefined;
+    if (!product) return undefined;
+    return {
+      ...product,
+      additionalImages: product.additionalImages ? 
+        (typeof product.additionalImages === 'string' ? JSON.parse(product.additionalImages) : product.additionalImages) 
+        : []
+    };
   }
 
   async createProduct(product: InsertProduct): Promise<Product> {
-    const [created] = await db.insert(products).values(product).returning();
-    return created;
+    // Convert additionalImages array to JSON string if it exists
+    const productData = {
+      ...product,
+      additionalImages: product.additionalImages ? JSON.stringify(product.additionalImages) : null
+    };
+    const [created] = await db.insert(products).values(productData).returning();
+    return {
+      ...created,
+      additionalImages: created.additionalImages ? JSON.parse(created.additionalImages) : []
+    };
   }
 
   async updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product | undefined> {
-    const [updated] = await db.update(products).set(product).where(eq(products.id, id)).returning();
-    return updated || undefined;
+    const productData = {
+      ...product,
+      additionalImages: product.additionalImages ? JSON.stringify(product.additionalImages) : undefined
+    };
+    const [updated] = await db.update(products).set(productData).where(eq(products.id, id)).returning();
+    if (!updated) return undefined;
+    return {
+      ...updated,
+      additionalImages: updated.additionalImages ? JSON.parse(updated.additionalImages) : []
+    };
   }
 
   async deleteProduct(id: string): Promise<void> {
@@ -230,6 +268,10 @@ export class DatabaseStorage implements IStorage {
     await db.delete(workshops).where(eq(workshops.id, id));
   }
 
+  async clearAllWorkshops(): Promise<void> {
+    await db.delete(workshops);
+  }
+
   // Workshop Bookings
   async getWorkshopBookings(workshopId?: string): Promise<WorkshopBooking[]> {
     if (workshopId) {
@@ -283,6 +325,38 @@ export class DatabaseStorage implements IStorage {
   async createGalleryItem(item: InsertGalleryItem): Promise<GalleryItem> {
     const [created] = await db.insert(galleryItems).values(item).returning();
     return created;
+  }
+
+  async deleteGalleryItem(id: string): Promise<void> {
+    console.log('Storage: Deleting gallery item with ID:', id);
+    const result = await db.delete(galleryItems).where(eq(galleryItems.id, id));
+    console.log('Storage: Delete result:', result);
+  }
+
+  // Product Likes
+  async likeProduct(productId: string, userId: string): Promise<ProductLike> {
+    const [like] = await db.insert(productLikes).values({ productId, userId }).returning();
+    return like;
+  }
+
+  async unlikeProduct(productId: string, userId: string): Promise<void> {
+    await db.delete(productLikes).where(
+      and(eq(productLikes.productId, productId), eq(productLikes.userId, userId))
+    );
+  }
+
+  async isProductLiked(productId: string, userId: string): Promise<boolean> {
+    const [like] = await db.select().from(productLikes).where(
+      and(eq(productLikes.productId, productId), eq(productLikes.userId, userId))
+    );
+    return !!like;
+  }
+
+  async getProductLikesCount(productId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(productLikes)
+      .where(eq(productLikes.productId, productId));
+    return Number(result[0]?.count || 0);
   }
 }
 

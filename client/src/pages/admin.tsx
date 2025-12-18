@@ -14,6 +14,7 @@ import {
   X,
   Eye,
   LogOut,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
@@ -33,15 +34,19 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import type { Product, Order, ArtClass, Workshop, Contact } from "@shared/schema";
+import type { Product, Order, ArtClass, Workshop, Contact } from "@/types";
 
 const productSchema = z.object({
   name: z.string().min(2, "Name is required"),
   description: z.string().min(10, "Description required"),
   price: z.string().min(1, "Price is required"),
+  discountPercent: z.number().min(0).max(100).default(0),
   category: z.string().min(1, "Category is required"),
-  imageUrl: z.string().optional(),
+  imageUrl: z.string().min(1, "At least one image is required"),
+  additionalImages: z.array(z.string()).default([]),
+  videoUrl: z.string().optional(),
   stockQuantity: z.number().min(0).default(0),
   stockStatus: z.string().default("available"),
   isEnabled: z.boolean().default(true),
@@ -61,7 +66,7 @@ function StatsCards() {
   const totalRevenue = orders?.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0) || 0;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
@@ -88,19 +93,7 @@ function StatsCards() {
           </div>
         </CardContent>
       </Card>
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-primary/10">
-              <GraduationCap className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">{classes?.length || 0}</p>
-              <p className="text-sm text-muted-foreground">Active Classes</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
@@ -108,7 +101,7 @@ function StatsCards() {
               <Calendar className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-semibold">${totalRevenue.toFixed(0)}</p>
+              <p className="text-2xl font-semibold">₹{totalRevenue.toFixed(0)}</p>
               <p className="text-sm text-muted-foreground">Total Revenue</p>
             </div>
           </div>
@@ -120,6 +113,7 @@ function StatsCards() {
 
 function ProductsTab() {
   const [showForm, setShowForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const { toast } = useToast();
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -131,8 +125,11 @@ function ProductsTab() {
       name: "",
       description: "",
       price: "",
+      discountPercent: 0,
       category: "decor",
       imageUrl: "",
+      additionalImages: [],
+      videoUrl: "",
       stockQuantity: 0,
       stockStatus: "available",
       isEnabled: true,
@@ -146,7 +143,17 @@ function ProductsTab() {
       const response = await apiRequest("POST", "/api/products", data);
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      const productData = form.getValues();
+      
+      // Store notification for users
+      localStorage.setItem('newProductNotification', JSON.stringify({
+        name: productData.name,
+        price: productData.price,
+        category: productData.category,
+        timestamp: Date.now()
+      }));
+      
       toast({ title: "Product created successfully" });
       setShowForm(false);
       form.reset();
@@ -154,6 +161,24 @@ function ProductsTab() {
     },
     onError: () => {
       toast({ title: "Failed to create product", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: ProductForm) => {
+      if (!editingProduct) throw new Error("No product selected for editing");
+      const response = await apiRequest("PATCH", `/api/products/${editingProduct.id}`, data);
+      return response;
+    },
+    onSuccess: () => {
+      toast({ title: "Product updated successfully" });
+      setShowForm(false);
+      setEditingProduct(null);
+      form.reset();
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update product", variant: "destructive" });
     },
   });
 
@@ -171,7 +196,11 @@ function ProductsTab() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-display text-lg">Products</h3>
-        <Button onClick={() => setShowForm(true)} data-testid="button-add-product">
+        <Button onClick={() => {
+          setEditingProduct(null);
+          form.reset();
+          setShowForm(true);
+        }} data-testid="button-add-product">
           <Plus className="h-4 w-4 mr-2" />
           Add Product
         </Button>
@@ -199,7 +228,7 @@ function ProductsTab() {
               <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
                 <TableCell className="font-medium">{product.name}</TableCell>
                 <TableCell className="capitalize">{product.category}</TableCell>
-                <TableCell>${parseFloat(product.price).toFixed(2)}</TableCell>
+                <TableCell>₹{parseFloat(product.price).toFixed(2)}</TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
                     <Badge variant={product.stockStatus === 'available' ? "default" : product.stockStatus === 'limited' ? "destructive" : "secondary"}>
@@ -209,14 +238,42 @@ function ProductsTab() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteMutation.mutate(product.id)}
-                    data-testid={`button-delete-product-${product.id}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        form.reset({
+                          name: product.name,
+                          description: product.description,
+                          price: product.price,
+                          discountPercent: product.discountPercent || 0,
+                          category: product.category,
+                          imageUrl: product.imageUrl || "",
+                          additionalImages: Array.isArray(product.additionalImages) ? product.additionalImages : [],
+                          videoUrl: product.videoUrl || "",
+                          stockQuantity: product.stockQuantity || 0,
+                          stockStatus: product.stockStatus || "available",
+                          isEnabled: product.isEnabled ?? true,
+                          isCustomizable: product.isCustomizable ?? false,
+                          featured: product.featured ?? false,
+                        });
+                        setEditingProduct(product);
+                        setShowForm(true);
+                      }}
+                      data-testid={`button-edit-product-${product.id}`}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteMutation.mutate(product.id)}
+                      data-testid={`button-delete-product-${product.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -230,13 +287,24 @@ function ProductsTab() {
       )}
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add New Product</DialogTitle>
+            <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form
-              onSubmit={form.handleSubmit((data) => createMutation.mutate(data))}
+              onSubmit={form.handleSubmit((data) => {
+                // Ensure additionalImages is properly formatted
+                const formattedData = {
+                  ...data,
+                  additionalImages: data.additionalImages || []
+                };
+                if (editingProduct) {
+                  updateMutation.mutate(formattedData);
+                } else {
+                  createMutation.mutate(formattedData);
+                }
+              })}
               className="space-y-4"
             >
               <FormField
@@ -284,23 +352,20 @@ function ProductsTab() {
 
                 <FormField
                   control={form.control}
-                  name="category"
+                  name="discountPercent"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Category</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-product-category">
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="decor">Home Décor</SelectItem>
-                          <SelectItem value="gifts">Gifts</SelectItem>
-                          <SelectItem value="paintings">Paintings</SelectItem>
-                          <SelectItem value="crafts">Crafts</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Discount %</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          min="0" 
+                          max="100"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                          data-testid="input-discount" 
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -309,13 +374,142 @@ function ProductsTab() {
 
               <FormField
                 control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-product-category">
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="decor">Home Décor</SelectItem>
+                        <SelectItem value="gifts">Gifts</SelectItem>
+                        <SelectItem value="paintings">Paintings</SelectItem>
+                        <SelectItem value="crafts">Crafts</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="imageUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Image URL (Optional)</FormLabel>
+                    <FormLabel>Main Product Image</FormLabel>
                     <FormControl>
-                      <Input {...field} data-testid="input-product-image" />
+                      <Input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              field.onChange(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        data-testid="input-product-image" 
+                      />
                     </FormControl>
+                    {field.value && (
+                      <img src={field.value} alt="Main product" className="w-full h-32 object-cover rounded mt-2" />
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="additionalImages"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Additional Images (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="file" 
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) {
+                            const readers = files.map(file => {
+                              return new Promise<string>((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(reader.result as string);
+                                reader.readAsDataURL(file);
+                              });
+                            });
+                            Promise.all(readers).then(results => {
+                              // Combine with existing images if any
+                              const existingImages = field.value || [];
+                              field.onChange([...existingImages, ...results]);
+                            });
+                          }
+                        }}
+                        data-testid="input-additional-images" 
+                      />
+                    </FormControl>
+                    {field.value && Array.isArray(field.value) && field.value.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {field.value.map((img, index) => (
+                          <div key={index} className="relative">
+                            <img src={img} alt={`Additional ${index + 1}`} className="w-full h-20 object-cover rounded" />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-1 right-1 h-6 w-6 p-0"
+                              onClick={() => {
+                                const newImages = field.value.filter((_, i) => i !== index);
+                                field.onChange(newImages);
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="videoUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product Video (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="file" 
+                        accept="video/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              field.onChange(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        data-testid="input-product-video" 
+                      />
+                    </FormControl>
+                    {field.value && (
+                      <video src={field.value} className="w-full h-32 object-cover rounded mt-2" controls />
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -422,10 +616,12 @@ function ProductsTab() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={createMutation.isPending}
+                disabled={createMutation.isPending || updateMutation.isPending}
                 data-testid="button-save-product"
               >
-                {createMutation.isPending ? "Saving..." : "Save Product"}
+                {(createMutation.isPending || updateMutation.isPending) 
+                  ? "Saving..." 
+                  : editingProduct ? "Update Product" : "Save Product"}
               </Button>
             </form>
           </Form>
@@ -440,6 +636,8 @@ function OrdersTab() {
     queryKey: ["/api/orders"],
   });
   const { toast } = useToast();
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState([]);
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -450,6 +648,16 @@ function OrdersTab() {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
     },
   });
+
+  const viewOrderDetails = async (order: Order) => {
+    try {
+      const response = await apiRequest("GET", `/api/orders/${order.id}`);
+      setSelectedOrder(response);
+      setOrderItems(response.items || []);
+    } catch (error) {
+      toast({ title: "Failed to load order details", variant: "destructive" });
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -499,7 +707,7 @@ function OrdersTab() {
                     <p className="text-sm text-muted-foreground">{order.customerEmail}</p>
                   </div>
                 </TableCell>
-                <TableCell>${parseFloat(order.totalAmount).toFixed(2)}</TableCell>
+                <TableCell>₹{parseFloat(order.totalAmount).toFixed(2)}</TableCell>
                 <TableCell>
                   <Badge variant="outline">
                     {order.isCustomOrder ? "Custom" : "Standard"}
@@ -514,23 +722,32 @@ function OrdersTab() {
                   {order.createdAt ? format(new Date(order.createdAt), "MMM d, yyyy") : "N/A"}
                 </TableCell>
                 <TableCell>
-                  <Select
-                    value={order.status || "new"}
-                    onValueChange={(value) =>
-                      updateMutation.mutate({ id: order.id, status: value })
-                    }
-                  >
-                    <SelectTrigger className="h-8" data-testid={`select-order-status-${order.id}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="delivered">Delivered</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => viewOrderDetails(order)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Select
+                      value={order.status || "new"}
+                      onValueChange={(value) =>
+                        updateMutation.mutate({ id: order.id, status: value })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-32" data-testid={`select-order-status-${order.id}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -542,6 +759,108 @@ function OrdersTab() {
           <p>No orders yet</p>
         </div>
       )}
+      
+      {/* Order Details Dialog */}
+      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Order Details</DialogTitle>
+            <DialogDescription>
+              Order ID: {selectedOrder?.id}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedOrder && (
+            <div className="space-y-6">
+              {/* Customer Information */}
+              <div>
+                <h4 className="font-medium mb-3">Customer Information</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Name</p>
+                    <p className="font-medium">{selectedOrder.customerName}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Email</p>
+                    <p className="font-medium">{selectedOrder.customerEmail}</p>
+                  </div>
+                  {selectedOrder.customerPhone && (
+                    <div>
+                      <p className="text-muted-foreground">Phone</p>
+                      <p className="font-medium">{selectedOrder.customerPhone}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-muted-foreground">Order Date</p>
+                    <p className="font-medium">
+                      {selectedOrder.createdAt ? format(new Date(selectedOrder.createdAt), "MMM d, yyyy 'at' h:mm a") : "N/A"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Delivery Address */}
+              <div>
+                <h4 className="font-medium mb-3">Delivery Address</h4>
+                <div className="bg-muted p-3 rounded-lg">
+                  <p className="text-sm whitespace-pre-wrap">{selectedOrder.shippingAddress}</p>
+                </div>
+              </div>
+              
+              {/* Order Items */}
+              {orderItems.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-3">Order Items</h4>
+                  <div className="space-y-2">
+                    {orderItems.map((item: any) => (
+                      <div key={item.id} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                        <div>
+                          <p className="font-medium">{item.productName}</p>
+                          <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                        </div>
+                        <p className="font-medium">₹{(parseFloat(item.price) * item.quantity).toFixed(2)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Custom Order Details */}
+              {selectedOrder.isCustomOrder && selectedOrder.customOrderDetails && (
+                <div>
+                  <h4 className="font-medium mb-3">Custom Order Details</h4>
+                  <div className="bg-muted p-3 rounded-lg">
+                    <p className="text-sm whitespace-pre-wrap">{selectedOrder.customOrderDetails}</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Order Summary */}
+              <div>
+                <h4 className="font-medium mb-3">Order Summary</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Order Type:</span>
+                    <Badge variant="outline">
+                      {selectedOrder.isCustomOrder ? "Custom Order" : "Standard Order"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Payment Status:</span>
+                    <Badge variant={selectedOrder.paymentStatus === 'completed' ? 'default' : 'secondary'}>
+                      {selectedOrder.paymentStatus || 'Pending'}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between font-medium text-lg">
+                    <span>Total Amount:</span>
+                    <span>₹{parseFloat(selectedOrder.totalAmount).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -776,7 +1095,7 @@ function ClassRegistrationsTab() {
                   </div>
                 </TableCell>
                 <TableCell>{cls.schedule}</TableCell>
-                <TableCell>${parseFloat(cls.price).toFixed(2)}</TableCell>
+                <TableCell>₹{parseFloat(cls.price).toFixed(2)}</TableCell>
                 <TableCell>
                   {cls.enrolledCount || 0} / {cls.maxStudents || 10}
                 </TableCell>
@@ -810,10 +1129,29 @@ function ClassRegistrationsTab() {
 }
 
 function WorkshopBookingsTab() {
-  const { data: workshops, isLoading } = useQuery<Workshop[]>({
-    queryKey: ["/api/workshops"],
-  });
   const { toast } = useToast();
+  const [workshops, setWorkshops] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchWorkshops = async () => {
+      try {
+        console.log('Fetching workshops...');
+        const response = await apiRequest("GET", "/api/workshops");
+        console.log('Workshops response:', response);
+        setWorkshops(response || []);
+        setError(null);
+      } catch (error) {
+        console.error('Failed to fetch workshops:', error);
+        setError(error.message || 'Failed to load workshops');
+        setWorkshops([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchWorkshops();
+  }, []);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingWorkshop, setEditingWorkshop] = useState<Workshop | null>(null);
   const [formData, setFormData] = useState({
@@ -825,22 +1163,41 @@ function WorkshopBookingsTab() {
     price: "",
     maxSeats: "12",
     materialsIncluded: true,
+    location: "",
+    requirements: "",
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      await apiRequest("POST", "/api/workshops", {
-        ...data,
+      if (!data.title || !data.description || !data.date || !data.time || !data.duration || !data.location || !data.price || !data.maxSeats) {
+        throw new Error('All fields are required');
+      }
+      
+      const payload = {
+        title: data.title.trim(),
+        description: data.description.trim(),
+        date: new Date(data.date + 'T' + data.time).getTime(),
+        time: data.time,
+        duration: data.duration.trim(),
+        venue: data.location.trim(),
         price: data.price,
-        maxSeats: parseInt(data.maxSeats),
-      });
+        maxSeats: parseInt(data.maxSeats) || 1,
+      };
+      console.log('Sending workshop data:', payload);
+      await apiRequest("POST", "/api/workshops", payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/workshops"] });
       toast({ title: "Workshop created successfully" });
       resetForm();
+      // Refresh workshops list
+      const fetchWorkshops = async () => {
+        const response = await apiRequest("GET", "/api/workshops");
+        setWorkshops(response || []);
+      };
+      fetchWorkshops();
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Workshop creation error:', error);
       toast({ title: "Failed to create workshop", variant: "destructive" });
     },
   });
@@ -848,15 +1205,25 @@ function WorkshopBookingsTab() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
       await apiRequest("PUT", `/api/workshops/${id}`, {
-        ...data,
+        title: data.title,
+        description: data.description,
+        date: new Date(data.date).getTime(),
+        time: data.time,
+        duration: data.duration,
+        venue: data.location,
         price: data.price,
         maxSeats: parseInt(data.maxSeats),
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/workshops"] });
       toast({ title: "Workshop updated successfully" });
       resetForm();
+      // Refresh workshops list
+      const fetchWorkshops = async () => {
+        const response = await apiRequest("GET", "/api/workshops");
+        setWorkshops(response || []);
+      };
+      fetchWorkshops();
     },
     onError: () => {
       toast({ title: "Failed to update workshop", variant: "destructive" });
@@ -868,11 +1235,29 @@ function WorkshopBookingsTab() {
       await apiRequest("DELETE", `/api/workshops/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/workshops"] });
       toast({ title: "Workshop deleted successfully" });
+      // Refresh workshops list
+      const fetchWorkshops = async () => {
+        const response = await apiRequest("GET", "/api/workshops");
+        setWorkshops(response || []);
+      };
+      fetchWorkshops();
     },
     onError: () => {
       toast({ title: "Failed to delete workshop", variant: "destructive" });
+    },
+  });
+
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/workshops");
+    },
+    onSuccess: () => {
+      toast({ title: "All workshops cleared" });
+      setWorkshops([]);
+    },
+    onError: () => {
+      toast({ title: "Failed to clear workshops", variant: "destructive" });
     },
   });
 
@@ -886,6 +1271,8 @@ function WorkshopBookingsTab() {
       price: "",
       maxSeats: "12",
       materialsIncluded: true,
+      location: "",
+      requirements: "",
     });
     setEditingWorkshop(null);
     setIsDialogOpen(false);
@@ -902,6 +1289,8 @@ function WorkshopBookingsTab() {
       price: workshop.price,
       maxSeats: String(workshop.maxSeats),
       materialsIncluded: workshop.materialsIncluded ?? true,
+      location: workshop.venue || "",
+      requirements: workshop.requirements || "",
     });
     setIsDialogOpen(true);
   };
@@ -919,7 +1308,21 @@ function WorkshopBookingsTab() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-display text-lg">Workshops</h3>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              if (workshops && workshops.length > 0 && confirm('Clear all workshops?')) {
+                clearAllMutation.mutate();
+              } else if (!workshops || workshops.length === 0) {
+                alert('No workshops to clear');
+              }
+            }}
+            data-testid="button-clear-workshops"
+          >
+            Clear All
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} data-testid="button-add-workshop">
               <Plus className="h-4 w-4 mr-2" />
@@ -1003,6 +1406,25 @@ function WorkshopBookingsTab() {
                   required
                 />
               </div>
+              <div>
+                <Label htmlFor="workshop-location">Location</Label>
+                <Input
+                  id="workshop-location"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  placeholder="Workshop venue/location"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="workshop-requirements">Requirements</Label>
+                <Textarea
+                  id="workshop-requirements"
+                  value={formData.requirements}
+                  onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
+                  placeholder="What participants need to bring or know"
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -1021,8 +1443,16 @@ function WorkshopBookingsTab() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
+      {error && (
+        <div className="text-center py-8 text-red-500">
+          <p>Error: {error}</p>
+          <Button onClick={() => window.location.reload()} className="mt-2">Retry</Button>
+        </div>
+      )}
+      
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2].map((i) => (
@@ -1030,61 +1460,303 @@ function WorkshopBookingsTab() {
           ))}
         </div>
       ) : workshops && workshops.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Workshop</TableHead>
-              <TableHead>Date & Time</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead>Booked</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {workshops.map((workshop) => (
-              <TableRow key={workshop.id} data-testid={`row-workshop-${workshop.id}`}>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{workshop.title}</p>
-                    <p className="text-sm text-muted-foreground">{workshop.duration}</p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div>
-                    <p>{format(new Date(workshop.date), "MMM d, yyyy")}</p>
-                    <p className="text-sm text-muted-foreground">{workshop.time}</p>
-                  </div>
-                </TableCell>
-                <TableCell>${parseFloat(workshop.price).toFixed(2)}</TableCell>
-                <TableCell>
-                  {workshop.bookedSeats || 0} / {workshop.maxSeats}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={workshop.isPast ? "secondary" : "default"}>
-                    {workshop.isPast ? "Completed" : "Upcoming"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(workshop)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(workshop.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="space-y-4">
+          {workshops.map((workshop) => (
+            <Card key={workshop.id} className="p-4">
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-medium text-lg">{workshop.title}</h3>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => openEditDialog(workshop)}>Edit</Button>
+                  <Button variant="destructive" size="sm" onClick={() => deleteMutation.mutate(workshop.id)}>Delete</Button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Date & Time</p>
+                  <p className="font-medium">{new Date(workshop.date).toLocaleDateString()}</p>
+                  <p className="text-sm">{workshop.time}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Location</p>
+                  <p className="font-medium">{workshop.venue}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Entry Price</p>
+                  <p className="font-medium text-primary">₹{workshop.price}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Seats Available</p>
+                  <p className="font-medium">{(workshop.maxSeats - (workshop.bookedSeats || 0))} / {workshop.maxSeats}</p>
+                </div>
+              </div>
+              
+              {workshop.description && (
+                <div className="mb-2">
+                  <p className="text-sm text-muted-foreground">Description</p>
+                  <p className="text-sm">{workshop.description}</p>
+                </div>
+              )}
+              
+              {workshop.requirements && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Requirements</p>
+                  <p className="text-sm">{workshop.requirements}</p>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
       ) : (
         <div className="text-center py-12 text-muted-foreground">
           <Calendar className="h-12 w-12 mx-auto mb-4 opacity-30" />
           <p>No workshops yet</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function GalleryTab() {
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const { toast } = useToast();
+  const { data: galleryItems, isLoading } = useQuery({
+    queryKey: ["/api/gallery"],
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async () => {
+      if (!imageFile || !title) throw new Error("Missing data");
+      
+      const reader = new FileReader();
+      return new Promise((resolve, reject) => {
+        reader.onload = async () => {
+          try {
+            const response = await apiRequest("POST", "/api/gallery", {
+              title,
+              imageUrl: reader.result,
+              category: "art",
+              isFeatured: false
+            });
+            resolve(response);
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(imageFile);
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/gallery"] });
+      toast({ title: "Image uploaded successfully" });
+      setImageFile(null);
+      setTitle("");
+    },
+    onError: () => {
+      toast({ title: "Upload failed", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/gallery/${id}`);
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/gallery"] });
+      queryClient.refetchQueries({ queryKey: ["/api/gallery"] });
+      toast({ title: "Image deleted" });
+    },
+    onError: (error) => {
+      console.error('Delete error:', error);
+      toast({ title: "Delete failed", variant: "destructive" });
+    },
+  });
+
+  return (
+    <div>
+      <h3 className="font-display text-lg mb-4">Gallery</h3>
+      
+      <Card className="p-4 mb-6">
+        <h4 className="font-medium mb-3">Upload New Image</h4>
+        <div className="space-y-3">
+          <Input
+            placeholder="Image title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <Input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+          />
+          <Button 
+            onClick={() => uploadMutation.mutate()}
+            disabled={!imageFile || !title || uploadMutation.isPending}
+          >
+            {uploadMutation.isPending ? "Uploading..." : "Upload Image"}
+          </Button>
+        </div>
+      </Card>
+
+      {isLoading ? (
+        <div className="grid grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="aspect-square" />
+          ))}
+        </div>
+      ) : galleryItems?.length > 0 ? (
+        <div className="grid grid-cols-3 gap-4">
+          {galleryItems.map((item: any) => (
+            <div key={item.id} className="relative">
+              <img
+                src={item.imageUrl}
+                alt={item.title}
+                className="w-full aspect-square object-cover rounded"
+              />
+              <Button
+                variant="destructive"
+                size="sm"
+                className="absolute top-2 right-2"
+                onClick={() => {
+                  if (confirm('Delete this image?')) {
+                    deleteMutation.mutate(item.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+              <p className="mt-1 text-sm font-medium">{item.title}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-center py-8 text-muted-foreground">No images uploaded yet</p>
+      )}
+    </div>
+  );
+}
+
+function PaymentSettingsTab() {
+  const { toast } = useToast();
+  const [settings, setSettings] = useState({
+    upiId: "",
+    qrCode: "",
+    bankName: "",
+    accountNumber: "",
+    ifscCode: "",
+    accountHolder: ""
+  });
+
+  useEffect(() => {
+    const saved = localStorage.getItem('paymentSettings');
+    if (saved) {
+      setSettings(JSON.parse(saved));
+    }
+  }, []);
+
+  const saveSettings = () => {
+    localStorage.setItem('paymentSettings', JSON.stringify(settings));
+    toast({ title: "Payment settings saved" });
+  };
+
+  return (
+    <div className="space-y-6">
+      <h3 className="font-display text-lg">Payment Settings</h3>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>UPI Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="upi-id">UPI ID</Label>
+            <Input
+              id="upi-id"
+              value={settings.upiId}
+              onChange={(e) => setSettings({...settings, upiId: e.target.value})}
+              placeholder="yourname@paytm"
+            />
+          </div>
+          <div>
+            <Label htmlFor="qr-code">UPI QR Code</Label>
+            <Input
+              id="qr-code"
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setSettings({...settings, qrCode: reader.result as string});
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            {settings.qrCode && (
+              <div className="mt-2">
+                <img src={settings.qrCode} alt="UPI QR Code" className="w-32 h-32 object-cover rounded" />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bank Account Details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="bank-name">Bank Name</Label>
+              <Input
+                id="bank-name"
+                value={settings.bankName}
+                onChange={(e) => setSettings({...settings, bankName: e.target.value})}
+                placeholder="State Bank of India"
+              />
+            </div>
+            <div>
+              <Label htmlFor="account-holder">Account Holder Name</Label>
+              <Input
+                id="account-holder"
+                value={settings.accountHolder}
+                onChange={(e) => setSettings({...settings, accountHolder: e.target.value})}
+                placeholder="John Doe"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="account-number">Account Number</Label>
+              <Input
+                id="account-number"
+                value={settings.accountNumber}
+                onChange={(e) => setSettings({...settings, accountNumber: e.target.value})}
+                placeholder="1234567890"
+              />
+            </div>
+            <div>
+              <Label htmlFor="ifsc-code">IFSC Code</Label>
+              <Input
+                id="ifsc-code"
+                value={settings.ifscCode}
+                onChange={(e) => setSettings({...settings, ifscCode: e.target.value})}
+                placeholder="SBIN0001234"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Button onClick={saveSettings} className="w-full">
+        Save Payment Settings
+      </Button>
     </div>
   );
 }
@@ -1196,7 +1868,7 @@ export default function Admin() {
   }
 
   return (
-    <main className="pt-24" data-testid="page-admin">
+    <main className="pt-24 min-h-screen bg-background" data-testid="page-admin">
       <section className="py-8 md:py-12">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center mb-8">
@@ -1223,17 +1895,21 @@ export default function Admin() {
                     <ShoppingCart className="h-4 w-4 mr-2" />
                     Orders
                   </TabsTrigger>
-                  <TabsTrigger value="classes" data-testid="tab-admin-classes">
-                    <GraduationCap className="h-4 w-4 mr-2" />
-                    Classes
-                  </TabsTrigger>
                   <TabsTrigger value="workshops" data-testid="tab-admin-workshops">
                     <Calendar className="h-4 w-4 mr-2" />
                     Workshops
                   </TabsTrigger>
+                  <TabsTrigger value="gallery" data-testid="tab-admin-gallery">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Gallery
+                  </TabsTrigger>
                   <TabsTrigger value="messages" data-testid="tab-admin-messages">
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Messages
+                  </TabsTrigger>
+                  <TabsTrigger value="settings" data-testid="tab-admin-settings">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Payment Settings
                   </TabsTrigger>
                 </TabsList>
 
@@ -1243,14 +1919,17 @@ export default function Admin() {
                 <TabsContent value="orders">
                   <OrdersTab />
                 </TabsContent>
-                <TabsContent value="classes">
-                  <ClassRegistrationsTab />
-                </TabsContent>
                 <TabsContent value="workshops">
                   <WorkshopBookingsTab />
                 </TabsContent>
+                <TabsContent value="gallery">
+                  <GalleryTab />
+                </TabsContent>
                 <TabsContent value="messages">
                   <MessagesTab />
+                </TabsContent>
+                <TabsContent value="settings">
+                  <PaymentSettingsTab />
                 </TabsContent>
               </Tabs>
             </CardContent>

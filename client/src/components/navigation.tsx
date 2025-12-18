@@ -1,18 +1,18 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, ShoppingBag, Palette } from "lucide-react";
+import { Menu, X, ShoppingBag, Palette, User, LogOut, ChevronDown, Package, MapPin, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useCart } from "@/lib/cart-context";
+import { useAuth } from "@/lib/auth-context";
 import { Badge } from "@/components/ui/badge";
 
 const navLinks = [
   { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
   { href: "/gallery", label: "Gallery" },
   { href: "/shop", label: "Shop" },
-  { href: "/classes", label: "Classes" },
   { href: "/workshops", label: "Workshops" },
   { href: "/contact", label: "Contact" },
 ];
@@ -22,6 +22,7 @@ export function Navigation() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const { totalItems } = useCart();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -50,7 +51,7 @@ export function Navigation() {
           <Link href="/" className="flex items-center gap-2" data-testid="link-home-logo">
             <Palette className="h-8 w-8 text-primary" />
             <span className="font-display text-2xl font-semibold tracking-tight">
-              Artistry Studio
+              Handmade by Tejasree
             </span>
           </Link>
 
@@ -92,11 +93,58 @@ export function Navigation() {
                 )}
               </Button>
             </Link>
-            <Link href="/admin" className="hidden lg:block">
-              <Button variant="outline" size="sm" data-testid="link-admin">
-                Admin
-              </Button>
-            </Link>
+            {user ? (
+              <>
+                {user.isAdmin && (
+                  <Link href="/admin" className="hidden lg:block">
+                    <Button variant="outline" size="sm" data-testid="link-admin">
+                      Admin
+                    </Button>
+                  </Link>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="hidden lg:flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="text-sm">{user.username}</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile" className="flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        Profile Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/orders" className="flex items-center gap-2">
+                        <Package className="h-4 w-4" />
+                        Order History
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/addresses" className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Saved Addresses
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => logout()} className="text-red-600">
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <Link href="/login" className="hidden lg:block">
+                <Button variant="outline" size="sm" data-testid="link-login">
+                  <User className="h-4 w-4 mr-2" />
+                  Sign In
+                </Button>
+              </Link>
+            )}
 
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild className="lg:hidden">
@@ -129,15 +177,43 @@ export function Navigation() {
                         </Button>
                       </Link>
                     ))}
-                    <Link href="/admin" onClick={() => setIsOpen(false)}>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start mt-4"
-                        data-testid="link-mobile-admin"
-                      >
-                        Admin Dashboard
-                      </Button>
-                    </Link>
+                    {user ? (
+                      <>
+                        {user.isAdmin && (
+                          <Link href="/admin" onClick={() => setIsOpen(false)}>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start mt-4"
+                              data-testid="link-mobile-admin"
+                            >
+                              Admin Dashboard
+                            </Button>
+                          </Link>
+                        )}
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start"
+                          onClick={() => {
+                            logout();
+                            setIsOpen(false);
+                          }}
+                        >
+                          <LogOut className="h-4 w-4 mr-2" />
+                          Logout
+                        </Button>
+                      </>
+                    ) : (
+                      <Link href="/login" onClick={() => setIsOpen(false)}>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start mt-4"
+                          data-testid="link-mobile-login"
+                        >
+                          <User className="h-4 w-4 mr-2" />
+                          Sign In
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </div>
               </SheetContent>

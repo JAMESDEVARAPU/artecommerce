@@ -30,6 +30,13 @@ export async function setupVite(server: Server, app: Express) {
   });
 
   app.use(vite.middlewares);
+  
+  // Serve attached assets in development
+  const assetsPath = path.resolve(import.meta.dirname, "../attached_assets");
+  if (fs.existsSync(assetsPath)) {
+    const express = await import("express");
+    app.use("/attached_assets", express.default.static(assetsPath));
+  }
 
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;

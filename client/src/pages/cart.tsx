@@ -54,7 +54,7 @@ function CartItem({
       <div className="flex-1 min-w-0">
         <h4 className="font-medium truncate">{item.productName}</h4>
         <p className="text-primary font-accent">
-          ${parseFloat(item.price).toFixed(2)}
+          ₹{parseFloat(item.price).toFixed(2)}
         </p>
         <div className="flex items-center gap-2 mt-2">
           <Button
@@ -89,7 +89,7 @@ function CartItem({
           <Trash2 className="h-4 w-4" />
         </Button>
         <p className="font-semibold">
-          ${(parseFloat(item.price) * item.quantity).toFixed(2)}
+          ₹{(parseFloat(item.price) * item.quantity).toFixed(2)}
         </p>
       </div>
     </div>
@@ -343,7 +343,7 @@ export default function Cart() {
                           {item.productName} x {item.quantity}
                         </span>
                         <span>
-                          ${(parseFloat(item.price) * item.quantity).toFixed(2)}
+                          ₹{(parseFloat(item.price) * item.quantity).toFixed(2)}
                         </span>
                       </div>
                     ))}
@@ -353,7 +353,7 @@ export default function Cart() {
 
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>${totalPrice.toFixed(2)}</span>
+                    <span>₹{totalPrice.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Shipping</span>
@@ -364,18 +364,19 @@ export default function Cart() {
 
                   <div className="flex justify-between font-semibold text-lg">
                     <span>Total</span>
-                    <span>${totalPrice.toFixed(2)}</span>
+                    <span>₹{totalPrice.toFixed(2)}</span>
                   </div>
 
                   {!isCheckout ? (
-                    <Button
-                      className="w-full"
-                      size="lg"
-                      onClick={() => setIsCheckout(true)}
-                      data-testid="button-proceed-checkout"
-                    >
-                      Proceed to Checkout
-                    </Button>
+                    <Link href="/checkout">
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        data-testid="button-proceed-checkout"
+                      >
+                        Proceed to Checkout
+                      </Button>
+                    </Link>
                   ) : (
                     <div className="space-y-2">
                       <Button

@@ -135,7 +135,7 @@ function WorkshopCard({ workshop, isPast }: { workshop: Workshop; isPast?: boole
               </div>
               <div className="text-right">
                 <p className="text-primary font-accent text-xl font-semibold">
-                  ${parseFloat(workshop.price).toFixed(2)}
+                  ₹{parseFloat(workshop.price).toFixed(2)}
                 </p>
                 <p className="text-sm text-muted-foreground">per person</p>
               </div>
@@ -244,9 +244,9 @@ function WorkshopCard({ workshop, isPast }: { workshop: Workshop; isPast?: boole
               <div className="bg-muted p-4 rounded-lg space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm">
-                    {form.watch("numberOfSeats") || 1} seat(s) × ${parseFloat(workshop.price).toFixed(2)}
+                    {form.watch("numberOfSeats") || 1} seat(s) × ₹{parseFloat(workshop.price).toFixed(2)}
                   </span>
-                  <span className="font-semibold">${totalPrice.toFixed(2)}</span>
+                  <span className="font-semibold">₹{totalPrice.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span>Date</span>
@@ -264,7 +264,7 @@ function WorkshopCard({ workshop, isPast }: { workshop: Workshop; isPast?: boole
                 disabled={mutation.isPending}
                 data-testid="button-confirm-booking"
               >
-                {mutation.isPending ? "Processing..." : `Book for $${totalPrice.toFixed(2)}`}
+                {mutation.isPending ? "Processing..." : `Book for ₹${totalPrice.toFixed(2)}`}
               </Button>
             </form>
           </Form>
@@ -332,12 +332,6 @@ export default function Workshops() {
                     </Card>
                   ))}
                 </div>
-              ) : upcomingWorkshops.length > 0 ? (
-                <div className="space-y-6">
-                  {upcomingWorkshops.map((workshop) => (
-                    <WorkshopCard key={workshop.id} workshop={workshop} />
-                  ))}
-                </div>
               ) : (
                 <div className="text-center py-20 text-muted-foreground">
                   <Calendar className="h-16 w-16 mx-auto mb-4 opacity-30" />
@@ -360,12 +354,6 @@ export default function Workshops() {
                         </CardContent>
                       </div>
                     </Card>
-                  ))}
-                </div>
-              ) : pastWorkshops.length > 0 ? (
-                <div className="space-y-6">
-                  {pastWorkshops.map((workshop) => (
-                    <WorkshopCard key={workshop.id} workshop={workshop} isPast />
                   ))}
                 </div>
               ) : (

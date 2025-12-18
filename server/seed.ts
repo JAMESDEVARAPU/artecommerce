@@ -1,14 +1,27 @@
 import { db } from "./db";
 import {
+  users,
   products,
   artClasses,
   workshops,
   testimonials,
   galleryItems,
-} from "@shared/schema";
+} from "@shared/schema-sqlite";
+import bcrypt from "bcrypt";
 
 async function seed() {
   console.log("Seeding database...");
+
+  // Seed Admin User
+  const hashedPassword = await bcrypt.hash("james9959@", 10);
+  await db.insert(users).values([
+    {
+      username: "james9959",
+      password: hashedPassword,
+      isAdmin: true,
+    },
+  ]).onConflictDoNothing();
+  console.log("Admin user created: username=james9959, password=james9959@");
 
   // Seed Products
   await db.insert(products).values([
@@ -18,7 +31,8 @@ async function seed() {
       price: "89.00",
       category: "decor",
       imageUrl: "/attached_assets/generated_images/handmade_ceramic_product.png",
-      inStock: true,
+      stockQuantity: 10,
+      stockStatus: "available",
       isCustomizable: true,
       featured: true,
     },
@@ -28,7 +42,8 @@ async function seed() {
       price: "65.00",
       category: "decor",
       imageUrl: "/attached_assets/generated_images/macrame_wall_decor.png",
-      inStock: true,
+      stockQuantity: 8,
+      stockStatus: "available",
       isCustomizable: true,
       featured: true,
     },
@@ -38,7 +53,8 @@ async function seed() {
       price: "125.00",
       category: "crafts",
       imageUrl: "/attached_assets/generated_images/hand-painted_plates.png",
-      inStock: true,
+      stockQuantity: 5,
+      stockStatus: "available",
       isCustomizable: false,
       featured: true,
     },
@@ -48,7 +64,8 @@ async function seed() {
       price: "45.00",
       category: "gifts",
       imageUrl: "/attached_assets/generated_images/custom_gift_box.png",
-      inStock: true,
+      stockQuantity: 15,
+      stockStatus: "available",
       isCustomizable: true,
       featured: true,
     },
@@ -57,7 +74,8 @@ async function seed() {
       description: "Original abstract canvas painting in warm earth tones, signed by the artist.",
       price: "250.00",
       category: "paintings",
-      inStock: true,
+      stockQuantity: 3,
+      stockStatus: "limited",
       isCustomizable: false,
       featured: false,
     },
@@ -66,7 +84,8 @@ async function seed() {
       description: "Handcrafted wooden photo frame with intricate carving details.",
       price: "55.00",
       category: "decor",
-      inStock: true,
+      stockQuantity: 12,
+      stockStatus: "available",
       isCustomizable: true,
       featured: false,
     },

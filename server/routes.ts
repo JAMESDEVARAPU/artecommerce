@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import bcrypt from "bcrypt";
+import { sendOTP } from './email.js';
 import {
   insertProductSchema,
   insertOrderSchema,
@@ -12,7 +13,7 @@ import {
   insertGalleryItemSchema,
   insertArtClassSchema,
   insertWorkshopSchema,
-} from "@shared/schema";
+} from "@shared/schema-sqlite";
 
 declare module "express-session" {
   interface SessionData {
@@ -32,7 +33,37 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // Auth Routes
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+
+      const existing = await storage.getUserByUsername(username);
+      if (existing) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({ username, password: hashedPassword, isAdmin: false });
+
+      req.session.userId = user.id;
+      req.session.isAdmin = false;
+
+      res.status(201).json({ id: user.id, username: user.username, isAdmin: false });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -112,7 +143,8 @@ export async function registerRoutes(
       const product = await storage.createProduct(parsed);
       res.status(201).json(product);
     } catch (error) {
-      res.status(400).json({ error: "Invalid product data" });
+      console.error("Product creation error:", error);
+      res.status(400).json({ error: "Invalid product data", details: error.message });
     }
   });
 
@@ -178,6 +210,8 @@ export async function registerRoutes(
           });
         }
       }
+
+
 
       res.status(201).json(order);
     } catch (error) {
@@ -297,11 +331,17 @@ export async function registerRoutes(
 
   app.post("/api/workshops", requireAdmin, async (req, res) => {
     try {
+      console.log('Workshop creation request body:', JSON.stringify(req.body, null, 2));
       const parsed = insertWorkshopSchema.parse(req.body);
+      console.log('Parsed workshop data:', JSON.stringify(parsed, null, 2));
       const workshop = await storage.createWorkshop(parsed);
       res.status(201).json(workshop);
     } catch (error) {
-      res.status(400).json({ error: "Invalid workshop data" });
+      console.error('Workshop creation error:', error);
+      if (error.issues) {
+        console.error('Validation issues:', JSON.stringify(error.issues, null, 2));
+      }
+      res.status(400).json({ error: "Invalid workshop data", details: error.message, issues: error.issues });
     }
   });
 
@@ -323,6 +363,15 @@ export async function registerRoutes(
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete workshop" });
+    }
+  });
+
+  app.delete("/api/workshops", requireAdmin, async (req, res) => {
+    try {
+      await storage.clearAllWorkshops();
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to clear workshops" });
     }
   });
 
@@ -417,7 +466,113 @@ export async function registerRoutes(
       const item = await storage.createGalleryItem(parsed);
       res.status(201).json(item);
     } catch (error) {
+      console.error("Gallery creation error:", error);
       res.status(400).json({ error: "Invalid gallery item data" });
+    }
+  });
+
+  app.delete("/api/gallery/:id", requireAdmin, async (req, res) => {
+    try {
+      console.log('Deleting gallery item:', req.params.id);
+      await storage.deleteGalleryItem(req.params.id);
+      console.log('Gallery item deleted successfully');
+      res.status(204).send();
+    } catch (error) {
+      console.error('Gallery delete error:', error);
+      res.status(500).json({ error: "Failed to delete gallery item" });
+    }
+  });
+
+  // Test email route
+  app.get("/api/test-email", async (req, res) => {
+    try {
+      console.log('Testing email with config:', {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS ? 'SET' : 'NOT SET'
+      });
+      await sendOTP('devarapujames@gmail.com', '123456');
+      res.json({ success: true, message: 'Test email sent to devarapujames@gmail.com' });
+    } catch (error) {
+      console.error('Test email error:', error);
+      res.status(500).json({ error: error.message, stack: error.stack });
+    }
+  });
+
+  // Password Reset (no auth required)
+  app.post("/api/send-otp", async (req, res) => {
+    try {
+      const { email } = req.body;
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      console.log('Sending OTP to:', email, 'OTP:', otp);
+      
+      try {
+        await sendOTP(email, otp);
+        
+        // Store OTP temporarily (in production, use Redis or database)
+        req.session.resetOtp = otp;
+        req.session.resetEmail = email;
+        
+        res.json({ success: true });
+      } catch (emailError) {
+        console.error('Email send error:', emailError);
+        throw emailError;
+      }
+    } catch (error) {
+      console.error('OTP send error:', error);
+      res.status(500).json({ error: "Failed to send OTP", details: error.message });
+    }
+  });
+
+  app.post("/api/verify-otp", async (req, res) => {
+    try {
+      const { otp } = req.body;
+      
+      if (otp === req.session.resetOtp) {
+        res.json({ success: true });
+      } else {
+        res.status(400).json({ error: "Invalid OTP" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "OTP verification failed" });
+    }
+  });
+
+  // Product Likes
+  app.get("/api/products/:id/likes", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.json({ liked: false, count: 0 });
+      }
+      const liked = await storage.isProductLiked(req.params.id, req.session.userId);
+      const count = await storage.getProductLikesCount(req.params.id);
+      res.json({ liked, count });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch likes" });
+    }
+  });
+
+  app.post("/api/products/:id/like", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Login required" });
+      }
+      await storage.likeProduct(req.params.id, req.session.userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to like product" });
+    }
+  });
+
+  app.delete("/api/products/:id/like", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Login required" });
+      }
+      await storage.unlikeProduct(req.params.id, req.session.userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to unlike product" });
     }
   });
 

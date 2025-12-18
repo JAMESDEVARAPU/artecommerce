@@ -22,6 +22,7 @@ export const products = pgTable("products", {
   name: text("name").notNull(),
   description: text("description").notNull(),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  discountPercent: integer("discount_percent").default(0),
   category: text("category").notNull(), // 'decor', 'gifts', 'paintings', 'crafts'
   imageUrl: text("image_url"),
   stockQuantity: integer("stock_quantity").default(0),
@@ -211,6 +212,18 @@ export const galleryItems = pgTable("gallery_items", {
 export const insertGalleryItemSchema = createInsertSchema(galleryItems).omit({ id: true });
 export type InsertGalleryItem = z.infer<typeof insertGalleryItemSchema>;
 export type GalleryItem = typeof galleryItems.$inferSelect;
+
+// Product Likes table
+export const productLikes = pgTable("product_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  productId: varchar("product_id").notNull().references(() => products.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertProductLikeSchema = createInsertSchema(productLikes).omit({ id: true, createdAt: true });
+export type InsertProductLike = z.infer<typeof insertProductLikeSchema>;
+export type ProductLike = typeof productLikes.$inferSelect;
 
 // Sessions table for authentication
 export const sessions = pgTable("sessions", {
